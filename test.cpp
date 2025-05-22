@@ -63,6 +63,11 @@ int main() {
                 cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
                 return -1;
             }
+            /*CascadeClassifier face_cascade4;
+            if (!face_cascade4.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_profileface.xml")) {
+                cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
+            return -1;
+            }*/
             Mat greyImage;
             cvtColor(image, greyImage, COLOR_BGR2GRAY);
             std::vector<Rect> faces; //объявляем faces = вектор(массив, изменяющийся динамически)  для хранения прямоугольников = Rect
@@ -78,20 +83,25 @@ int main() {
             face_cascade2.detectMultiScale(greyImage, faces2, 1.05, 5, 0, Size(30, 30));
             std::vector<Rect> faces3;
             face_cascade3.detectMultiScale(greyImage, faces3, 1.04, 4, 0, Size(25, 25));
-            /*for (size_t i = 0; i < faces3.size(); i++) {
-                rectangle(image, faces3[i], Scalar(255, 0, 0), 2);
-                blurFace(image, faces3[i]);
+            //std::vector<Rect> faces4;
+            //face_cascade4.detectMultiScale(greyImage, faces4, 1.05, 3, 0, Size(25, 25));
+            /*for (size_t i = 0; i < faces4.size(); i++) {
+                rectangle(image, faces4[i], Scalar(255, 0, 0), 2);
+                blurFace(image, faces4[i]);
             }*/ //это тестовый отрывок для проверки одного каскада 
             std::vector<Rect> final_face;
 
             for (size_t i = 0; i < faces.size(); i++) {
                 for (size_t j = 0; j < faces2.size(); j++) {
                     for (size_t y = 0; y < faces3.size(); y++) {
-                        Rect intersection = faces[i] & faces2[j] & faces3[y];
-                        if (intersection.area() > 0) {
-                            final_face.push_back(faces[i]);
-                            break;
-                        }
+                       
+                            Rect intersection = faces[i] & faces2[j] & faces3[y];
+                            if (intersection.area() > 0) {
+                                final_face.push_back(faces[i]);
+                                break;
+                            }
+                        
+                        
                     }
                 }
             }
@@ -110,6 +120,8 @@ int main() {
             imwrite(output_path, image);
 
             std::cout << "Изображение с размытыми лицами сохранено как: " << output_path << std::endl;
+            image.release();
+            greyImage.release();
         }
 
     }
