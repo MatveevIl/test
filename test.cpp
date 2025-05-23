@@ -8,6 +8,9 @@ using namespace cv;
 using namespace std;
 namespace fs = std::filesystem;
 
+CascadeClassifier face_cascade; //объявляем объект стандартного для опенСВ класса CascadeClassifier для обнаружения объектов
+CascadeClassifier face_cascade2;
+CascadeClassifier face_cascade3;
 
 void blurFace(Mat& image, Rect face) { //Mat - объект(матрица), представляющий изображение; объект Rect - прямоугольник лица
     Mat faceROI = image(face); //создаёт объект, типа Mat, являющийся регионом интереса
@@ -15,8 +18,94 @@ void blurFace(Mat& image, Rect face) { //Mat - объект(матрица), п�
     faceROI.copyTo(image(face)); //копируем размытое на исходное изображение
 }
 
+void image_handler(fs::path file_path ) {
+    std::cout << file_path.filename().string() << std::endl; // Выводим только имя файла
+    Mat image = imread(file_path.string()); // Используем полный путь к файлу
+
+    // Проверяем, удалось ли загрузить изображение
+    if (image.empty()) {
+        std::cerr << "Не удалось загрузить изображение: " << file_path.string() << std::endl;
+    }
+
+
+
+    Mat greyImage;
+    cvtColor(image, greyImage, COLOR_BGR2GRAY);
+    std::vector<Rect> faces; //объявляем faces = вектор(массив, изменяющийся динамически)  для хранения прямоугольников = Rect
+    face_cascade.detectMultiScale(image, faces, 1.05, 6, 0 | CASCADE_SCALE_IMAGE, Size(35, 40));
+    /*функция для обнаружения лиц(входное изображение; вектор, куда сохраняем найденные лица;
+    первый параметр в диапазоне 1,05-1,4 - параметр масштабирования, чем меньше - тем точнее, но дольше работает;
+    второй параметр 2-6 - параметр, определяющий, сколько прямоугольников дб рядом, чтоб кандидат стал лицом, чем больше значение - тем меньше ложных срабатываний, но можно пропустить лица
+    0 - других флагов нет
+    CASCADE_SCALE_IMAGE - размер изображения масштабируем во время поиска
+    Сайз - минимальный размер лица для определения*/
+
+    std::vector<Rect> faces2;
+    face_cascade2.detectMultiScale(greyImage, faces2, 1.05, 5, 0, Size(30, 30));
+    std::vector<Rect> faces3;
+    face_cascade3.detectMultiScale(greyImage, faces3, 1.04, 4, 0, Size(25, 25));
+    //std::vector<Rect> faces4;
+    //face_cascade4.detectMultiScale(greyImage, faces4, 1.05, 3, 0, Size(25, 25));
+    /*for (size_t i = 0; i < faces4.size(); i++) {
+        rectangle(image, faces4[i], Scalar(255, 0, 0), 2);
+        blurFace(image, faces4[i]);
+    }*/ //это тестовый отрывок для проверки одного каскада 
+    std::vector<Rect> final_face;
+
+    for (size_t i = 0; i < faces.size(); i++) {
+        for (size_t j = 0; j < faces2.size(); j++) {
+            for (size_t y = 0; y < faces3.size(); y++) {
+
+                Rect intersection = faces[i] & faces2[j] & faces3[y];
+                if (intersection.area() > 0) {
+                    final_face.push_back(faces[i]);
+                    break;
+                }
+            }
+        }
+    }
+    for (size_t i = 0; i < final_face.size(); i++) {
+        rectangle(image, final_face[i], Scalar(255, 0, 0), 2);
+        blurFace(image, final_face[i]);
+    }
+
+    // Создаем имя для выходного файла
+    // Используем имя исходного файла для создания имени выходного файла
+    std::string output_filename = "blurred_" + file_path.filename().string();
+    // Получаем путь к папке, где находится исходный файл
+    std::string output_path = file_path.parent_path().string() + "/" + output_filename;
+
+    // Сохраняем получившееся изображение
+    imwrite(output_path, image);
+
+    std::cout << "Изображение с размытыми лицами сохранено как: " << output_path << std::endl;
+    image.release();
+    greyImage.release();
+}
+
 int main() {
     setlocale(LC_ALL, "Russian");
+
+    if (!face_cascade.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_default.xml")) {
+        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
+        return -1;
+    }
+
+    if (!face_cascade2.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt.xml")) {
+        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
+        return -1;
+    }
+
+    if (!face_cascade3.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt2.xml")) {
+        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
+        return -1;
+    }
+    /*CascadeClassifier face_cascade4;
+    if (!face_cascade4.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_profileface.xml")) {
+        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
+    return -1;
+    }*/
+
     std::string folder_path;
     std::cout << "Введите путь к папке: ";
     std::cin >> folder_path;
@@ -39,89 +128,7 @@ int main() {
 
         std::cout << "Файлы в папке:" << std::endl;
         for (const auto& file_path : files) {
-            std::cout << file_path.filename().string() << std::endl; // Выводим только имя файла
-            Mat image = imread(file_path.string()); // Используем полный путь к файлу
-
-            // Проверяем, удалось ли загрузить изображение
-            if (image.empty()) {
-                std::cerr << "Не удалось загрузить изображение: " << file_path.string() << std::endl;
-                continue;  // Переходим к следующему файлу
-            }
-
-            CascadeClassifier face_cascade; //объявляем объект стандартного для опенСВ класса CascadeClassifier для обнаружения объектов
-            if (!face_cascade.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_default.xml")) {
-                cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
-                return -1;
-            }
-            CascadeClassifier face_cascade2;
-            if (!face_cascade2.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt.xml")) {
-                cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
-                return -1;
-            }
-            CascadeClassifier face_cascade3;
-            if (!face_cascade3.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt2.xml")) {
-                cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
-                return -1;
-            }
-            /*CascadeClassifier face_cascade4;
-            if (!face_cascade4.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_profileface.xml")) {
-                cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
-            return -1;
-            }*/
-            Mat greyImage;
-            cvtColor(image, greyImage, COLOR_BGR2GRAY);
-            std::vector<Rect> faces; //объявляем faces = вектор(массив, изменяющийся динамически)  для хранения прямоугольников = Rect
-            face_cascade.detectMultiScale(image, faces, 1.05, 6, 0 | CASCADE_SCALE_IMAGE, Size(35, 40));
-            /*функция для обнаружения лиц(входное изображение; вектор, куда сохраняем найденные лица;
-            первый параметр в диапазоне 1,05-1,4 - параметр масштабирования, чем меньше - тем точнее, но дольше работает; 
-            второй параметр 2-6 - параметр, определяющий, сколько прямоугольников дб рядом, чтоб кандидат стал лицом, чем больше значение - тем меньше ложных срабатываний, но можно пропустить лица
-            0 - других флагов нет
-            CASCADE_SCALE_IMAGE - размер изображения масштабируем во время поиска
-            Сайз - минимальный размер лица для определения*/
-
-            std::vector<Rect> faces2;
-            face_cascade2.detectMultiScale(greyImage, faces2, 1.05, 5, 0, Size(30, 30));
-            std::vector<Rect> faces3;
-            face_cascade3.detectMultiScale(greyImage, faces3, 1.04, 4, 0, Size(25, 25));
-            //std::vector<Rect> faces4;
-            //face_cascade4.detectMultiScale(greyImage, faces4, 1.05, 3, 0, Size(25, 25));
-            /*for (size_t i = 0; i < faces4.size(); i++) {
-                rectangle(image, faces4[i], Scalar(255, 0, 0), 2);
-                blurFace(image, faces4[i]);
-            }*/ //это тестовый отрывок для проверки одного каскада 
-            std::vector<Rect> final_face;
-
-            for (size_t i = 0; i < faces.size(); i++) {
-                for (size_t j = 0; j < faces2.size(); j++) {
-                    for (size_t y = 0; y < faces3.size(); y++) {
-                       
-                            Rect intersection = faces[i] & faces2[j] & faces3[y];
-                            if (intersection.area() > 0) {
-                                final_face.push_back(faces[i]);
-                                break;
-                            }
-                        
-                        
-                    }
-                }
-            }
-            for (size_t i = 0; i < final_face.size(); i++) {
-                rectangle(image, final_face[i], Scalar(255, 0, 0), 2);
-                blurFace(image, final_face[i]);
-            }
-
-            // Создаем имя для выходного файла
-            // Используем имя исходного файла для создания имени выходного файла
-            std::string output_filename = "blurred_" + file_path.filename().string();
-            // Получаем путь к папке, где находится исходный файл
-            std::string output_path = file_path.parent_path().string() + "/" + output_filename;
-
-            // Сохраняем получившееся изображение
-            imwrite(output_path, image);
-
-            std::cout << "Изображение с размытыми лицами сохранено как: " << output_path << std::endl;
-            image.release();
-            greyImage.release();
+            image_handler(file_path);
         }
 
     }
