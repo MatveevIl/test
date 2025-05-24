@@ -3,23 +3,51 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <thread>
+#include <mutex>
+
 
 using namespace cv;
 using namespace std;
 namespace fs = std::filesystem;
 
-CascadeClassifier face_cascade; //объявляем объект стандартного для опенСВ класса CascadeClassifier для обнаружения объектов
-CascadeClassifier face_cascade2;
-CascadeClassifier face_cascade3;
+std::mutex blurFace_mutex;
+
+
 
 void blurFace(Mat& image, Rect face) { //Mat - объект(матрица), представляющий изображение; объект Rect - прямоугольник лица
+
+    std::lock_guard<std::mutex>lock(blurFace_mutex);
+
     Mat faceROI = image(face); //создаёт объект, типа Mat, являющийся регионом интереса
     GaussianBlur(faceROI, faceROI, Size(101, 101), 0); //фэйсРои - лицо входящее, фэйсРОИ - лицо выходящее; размер ядра Гаусса и отклонение по Х и У - 0(стандартное)
     faceROI.copyTo(image(face)); //копируем размытое на исходное изображение
 }
 
 void image_handler(fs::path file_path ) {
-    std::cout << file_path.filename().string() << std::endl; // Выводим только имя файла
+
+    CascadeClassifier face_cascade; //объявляем объект стандартного для опенСВ класса CascadeClassifier для обнаружения объектов
+    CascadeClassifier face_cascade2;
+    CascadeClassifier face_cascade3;
+
+    if (!face_cascade.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_default.xml")) {
+        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
+        //return -1;
+    }
+
+    if (!face_cascade2.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt.xml")) {
+        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
+        //return -1;
+    }
+
+    if (!face_cascade3.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt2.xml")) {
+        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
+        //return -1;
+    }
+
+    std::cout << "Начат поток: " << std::this_thread::get_id() << "  Для: "<<file_path.filename().string()<< std::endl;
+
+   
     Mat image = imread(file_path.string()); // Используем полный путь к файлу
 
     // Проверяем, удалось ли загрузить изображение
@@ -27,12 +55,10 @@ void image_handler(fs::path file_path ) {
         std::cerr << "Не удалось загрузить изображение: " << file_path.string() << std::endl;
     }
 
-
-
     Mat greyImage;
     cvtColor(image, greyImage, COLOR_BGR2GRAY);
     std::vector<Rect> faces; //объявляем faces = вектор(массив, изменяющийся динамически)  для хранения прямоугольников = Rect
-    face_cascade.detectMultiScale(image, faces, 1.05, 6, 0 | CASCADE_SCALE_IMAGE, Size(35, 40));
+    face_cascade.detectMultiScale(greyImage, faces, 1.05, 6, 0, Size(35, 40));
     /*функция для обнаружения лиц(входное изображение; вектор, куда сохраняем найденные лица;
     первый параметр в диапазоне 1,05-1,4 - параметр масштабирования, чем меньше - тем точнее, но дольше работает;
     второй параметр 2-6 - параметр, определяющий, сколько прямоугольников дб рядом, чтоб кандидат стал лицом, чем больше значение - тем меньше ложных срабатываний, но можно пропустить лица
@@ -81,30 +107,22 @@ void image_handler(fs::path file_path ) {
     std::cout << "Изображение с размытыми лицами сохранено как: " << output_path << std::endl;
     image.release();
     greyImage.release();
+    
+    std::cout << "Завершён поток: " << std::this_thread::get_id() << std::endl;
+
 }
 
 int main() {
     setlocale(LC_ALL, "Russian");
 
-    if (!face_cascade.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_default.xml")) {
-        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
-        return -1;
-    }
-
-    if (!face_cascade2.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt.xml")) {
-        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
-        return -1;
-    }
-
-    if (!face_cascade3.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_frontalface_alt2.xml")) {
-        cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
-        return -1;
-    }
+    
     /*CascadeClassifier face_cascade4;
     if (!face_cascade4.load("D:\\openCV\\opencv\\sources\\data\\haarcascades\\haarcascade_profileface.xml")) {
         cout << "Не удалось загрузить классификатор каскадов Хаара" << endl;
     return -1;
     }*/
+
+    std::vector<std::thread> threads;
 
     std::string folder_path;
     std::cout << "Введите путь к папке: ";
@@ -126,10 +144,20 @@ int main() {
             }
         }
 
-        std::cout << "Файлы в папке:" << std::endl;
+        //std::cout << "Файлы в папке:" << std::endl;
         for (const auto& file_path : files) {
-            image_handler(file_path);
+            std::cout << file_path.filename().string() << std::endl; // Выводим только имя файла
+            threads.emplace_back(image_handler, file_path);
+
+            //image_handler(file_path);
+
         }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+
+        std::cout << "Все потоки завершены." << std::endl;
 
     }
     catch (const std::exception& e) {
